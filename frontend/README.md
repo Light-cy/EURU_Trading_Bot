@@ -1,16 +1,58 @@
-# React + Vite
+# 🎨 Xephy-AI Trading Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the front-end user interface for the Xephy-AI Trading System. It is a highly responsive, modern, and dark-themed web dashboard built to monitor quantitative trading activity, live PnL, and signal histories.
 
-Currently, two official plugins are available:
+## 🛠 Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Framework:** [React 18](https://react.dev/)
+- **Build Tool:** [Vite](https://vitejs.dev/)
+- **Styling:** [TailwindCSS 3](https://tailwindcss.com/)
+- **Icons:** [Lucide React](https://lucide.dev/)
+- **API Client:** Axios (connected via a modular API service layer)
 
-## React Compiler
+## 📁 Directory Structure
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```text
+src/
+├── assets/         # Static images, SVGs, and CSS entry points
+├── components/     # Reusable React components
+│   └── layout/     # Sidebar, Header, and Layout wrapper
+├── pages/          # Main application views
+│   ├── Dashboard.jsx  # Main live trading view (Live PnL, Signals, Overview)
+│   └── Trades.jsx     # Historical completed trades with profit/loss
+├── services/       # External integrations
+│   └── api.js      # Centralized Axios API calls to the Flask backend
+├── App.jsx         # React Router and main application root
+└── main.jsx        # React DOM entry point
+```
 
-## Expanding the ESLint configuration
+## 🔄 State Management & Polling
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Because the Xephy-AI backend operates as an independent engine taking trades continuously, this frontend does not rely on complex Redux states. Instead, it uses a highly efficient **React Hook Polling** architecture.
+
+On the `Dashboard.jsx` and `Trades.jsx` pages, `useEffect` hooks automatically poll the backend `/api/positions` and `/api/trades` endpoints every 2-5 seconds. This guarantees that your UI is always perfectly in sync with the backend Engine's memory, displaying floating PnL and newly closed trades instantly.
+
+## 🚀 Running the Project
+
+First, ensure you have NodeJS installed.
+
+1. **Install Dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Start Development Server:**
+   ```bash
+   npm run dev
+   ```
+   *The server will start on `http://localhost:5173`.*
+
+3. **Build for Production:**
+   ```bash
+   npm run build
+   ```
+   *This compiles the React code into static HTML/JS/CSS inside the `/dist` directory, ready to be served by Nginx, Apache, or even Flask.*
+
+## 🔗 Connecting to the Backend
+
+The frontend defaults to looking for the backend Flask server at `http://localhost:5000/api`. If your backend is hosted elsewhere (e.g., a VPS or cloud provider), update the `API_BASE_URL` inside `src/services/api.js`.
