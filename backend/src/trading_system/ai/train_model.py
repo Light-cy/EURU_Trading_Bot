@@ -9,6 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../.
 
 from src.trading_system.ai.model import XGBoostSignalModel
 from src.trading_system.market.mock_mt5 import MockMT5
+from src.trading_system.market.real_mt5 import RealMT5
 from src.trading_system.config.settings import settings
 
 def generate_labels(df: pd.DataFrame, lookahead: int = 10, threshold: float = 0.001) -> np.ndarray:
@@ -55,12 +56,15 @@ def main():
         logger.info("Using MockMT5 to generate synthetic training data...")
         mt5_client = MockMT5(pair=settings.PAIR)
     else:
-        logger.info("Using real MT5 client for historical data...")
-        # Fallback to MockMT5 for now since real MT5 isn't fully implemented in this script
-        # In a real environment, you'd import the real MT5 client here
-        mt5_client = MockMT5(pair=settings.PAIR)
+        logger.info("Using RealMT5 client for live historical data...")
+        mt5_client = RealMT5(pair=settings.PAIR)
         
-    mt5_client.connect()
+    success = mt5_client.connect()
+    
+    if not success and not settings.MOCK_MT5:
+        logger.warning("Real MT5 connection failed! Falling back to MockMT5 (Demo Mode)...")
+        mt5_client = MockMT5(pair=settings.PAIR)
+        mt5_client.connect()
     
     # 2. Fetch historical data (larger dataset for training)
     num_bars = 5000
@@ -69,6 +73,11 @@ def main():
     if df is None or len(df) < 100:
         logger.error("Not enough data to train the model.")
         return
+        
+    # Save dataset to CSV for inspection/record
+    dataset_path = os.path.join(os.path.dirname(__file__), f"training_dataset_{settings.PAIR}.csv")
+    df.to_csv(dataset_path, index=False)
+    logger.success(f"💾 Dataset saved to: {dataset_path}")
         
     # 3. Generate labels
     lookahead = 15 # Look ahead 15 candles
