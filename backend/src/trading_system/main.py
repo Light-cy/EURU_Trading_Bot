@@ -10,6 +10,7 @@ from .risk.manager import RiskManager
 from .database.models import DatabaseManager
 from .execution.executor import TradeExecutor
 from .market.mock_mt5 import MockMT5
+from .market.real_mt5 import RealMT5
 from .config.settings import settings
 from .ai.model import XGBoostSignalModel
 
@@ -53,11 +54,13 @@ class TradingSystem:
             client.connect()
             return client
         else:
-            # TODO: Import real MT5 when on Windows
-            logger.warning("Real MT5 not available on this platform")
-            logger.info(f"Falling back to MockMT5")
-            client = MockMT5(pair=settings.PAIR)
-            client.connect()
+            logger.info(f"📊 Using RealMT5 (Live Trading Mode)")
+            client = RealMT5(pair=settings.PAIR)
+            success = client.connect()
+            if not success:
+                logger.warning("Real MT5 connection failed! Falling back to MockMT5 (Demo Mode)...")
+                client = MockMT5(pair=settings.PAIR)
+                client.connect()
             return client
 
     def _init_ml_model(self):

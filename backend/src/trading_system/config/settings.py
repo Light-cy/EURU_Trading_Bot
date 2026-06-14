@@ -17,6 +17,11 @@ class Settings:
     MOCK_MT5: bool = os.getenv("MOCK_MT5", "true").lower() == "true"
     LOOP_INTERVAL: int = int(os.getenv("LOOP_INTERVAL", 900)) # 900s = 15m
     
+    # Real MT5 Credentials
+    MT5_LOGIN: int = int(os.getenv("MT5_LOGIN", 0)) if os.getenv("MT5_LOGIN") else 0
+    MT5_PASSWORD: str = os.getenv("MT5_PASSWORD", "")
+    MT5_SERVER: str = os.getenv("MT5_SERVER", "")
+    
     # Machine Learning
     USE_ML_MODEL: bool = os.getenv("USE_ML_MODEL", "false").lower() == "true"
 

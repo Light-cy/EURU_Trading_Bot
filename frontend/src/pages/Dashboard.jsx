@@ -216,8 +216,8 @@ const Dashboard = () => {
         />
       </div>
 
-      {/* NEW: 3 Column Analytics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* NEW: 3 Column Analytics Grid (Temporarily 2 columns without SMC) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* 1. Indicator Confidence Breakdown */}
         <Card>
@@ -230,11 +230,10 @@ const Dashboard = () => {
                   <div className="flex justify-between text-sm mb-1.5 items-center">
                     <div className="flex items-center space-x-2">
                       <span className="font-semibold text-slate-300">{name}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                        data.signal === 'BUY' ? 'bg-green-500/20 text-green-400' : 
-                        data.signal === 'SELL' ? 'bg-red-500/20 text-red-400' : 
-                        'bg-slate-700 text-slate-300'
-                      }`}>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${data.signal === 'BUY' ? 'bg-green-500/20 text-green-400' :
+                          data.signal === 'SELL' ? 'bg-red-500/20 text-red-400' :
+                            'bg-slate-700 text-slate-300'
+                        }`}>
                         {data.signal || 'NEUTRAL'}
                       </span>
                     </div>
@@ -242,11 +241,10 @@ const Dashboard = () => {
                   </div>
                   <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
                     <div
-                      className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                        data.signal === 'BUY' ? 'bg-green-500' : 
-                        data.signal === 'SELL' ? 'bg-red-500' : 
-                        'bg-slate-500'
-                      }`}
+                      className={`h-full rounded-full transition-all duration-1000 ease-out ${data.signal === 'BUY' ? 'bg-green-500' :
+                          data.signal === 'SELL' ? 'bg-red-500' :
+                            'bg-slate-500'
+                        }`}
                       style={{ width: `${val}%` }}
                     ></div>
                   </div>
@@ -256,7 +254,8 @@ const Dashboard = () => {
           </div>
         </Card>
 
-        {/* 2. SMC Analysis Card */}
+        {/* 2. SMC Analysis Card (Temporarily deactivated) */}
+        {/*
         <Card>
           <h2 className="text-lg font-bold mb-5 flex items-center"><Layers className="mr-2 text-purple-400" size={20} /> SMC Analysis</h2>
           <div className="space-y-4 pt-1">
@@ -278,6 +277,7 @@ const Dashboard = () => {
             </div>
           </div>
         </Card>
+        */}
 
         {/* 3. AI Confidence Card */}
         <Card>
@@ -309,10 +309,12 @@ const Dashboard = () => {
               <span className="text-slate-400">Indicators Score</span>
               <span className="font-bold text-blue-400 text-base">{indConf}%</span>
             </div>
+
             <div className="flex justify-between items-center text-sm bg-slate-900/80 p-3 rounded-lg border border-slate-700/50">
               <span className="text-slate-400">SMC Score</span>
               <span className="font-bold text-purple-400 text-base">{smcConf}%</span>
             </div>
+
           </div>
         </Card>
 
