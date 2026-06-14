@@ -256,6 +256,8 @@ class TradingSystem:
                 "sell_count": signal.sell_count,
                 "neutral_count": signal.neutral_count,
                 "reason": signal.reason,
+                "indicator_results": signal.indicator_results,
+                "smc_results": signal.smc_results,
                 "ml_boosted": signal.ml_boosted,
                 "ml_score": signal.ml_score,
                 "ml_mode": "ENABLED" if signal.ml_boosted else "DISABLED (NO_ML)",

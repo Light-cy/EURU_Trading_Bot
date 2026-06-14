@@ -4,6 +4,7 @@ from loguru import logger
 import threading
 import time
 from datetime import datetime
+import json
 
 from src.trading_system.main import TradingSystem
 from src.trading_system.config.settings import settings
@@ -129,7 +130,9 @@ def get_signal_history():
                 "sell_count": s.sell_count,
                 "neutral_count": s.neutral_count,
                 "reason": s.reason,
-                "was_executed": s.was_executed
+                "was_executed": s.was_executed,
+                "indicator_results": json.loads(s.indicator_results) if s.indicator_results else None,
+                "smc_results": json.loads(s.smc_results) if s.smc_results else None
             }
             for s in signals
         ],

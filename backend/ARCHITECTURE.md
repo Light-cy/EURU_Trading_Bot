@@ -200,7 +200,7 @@ Step 5: Risk Calculation (T0+5s)
     ├─ Stop Loss: 1.0797
     ├─ Take Profit: 1.0950 (2:1 RRR)
     ├─ Risk Amount: $100 (1% of $10,000)
-    ├─ Position Size: 1.5 lots
+    ├─ Position Size: 1.5 lots/0.2
     ├─ Reward Amount: $200
     └─ RRR: 2.0
 
