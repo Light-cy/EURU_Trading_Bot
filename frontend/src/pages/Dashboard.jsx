@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Activity, TrendingUp, DollarSign, BrainCircuit, Play, Square, Settings, Zap, Database, BarChart2, Layers, Cpu } from 'lucide-react';
-import { getStatus, getAnalyze, getAnalysisStatus, startAnalysis, stopAnalysis, getSignalsHistory, getPositions, getSettings, updateSettings, getLatestAnalysis } from '../services/api';
+import { Activity, TrendingUp, DollarSign, BrainCircuit, Play, Square, Settings, Database, BarChart2, Layers, Cpu } from 'lucide-react';
+import { getAccountInfo, getAccountPerformance, getMarketQuote, getAnalyze, getAnalysisStatus, startAnalysis, stopAnalysis, getSignalsHistory, getPositions, getSettings, getLatestAnalysis } from '../services/api';
 
 const Card = ({ children, className = "" }) => (
   <div className={`bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 shadow-sm ${className}`}>
@@ -35,40 +35,32 @@ const Badge = ({ children, color = "gray" }) => {
   );
 };
 
-const Toggle = ({ label, enabled, onChange, icon: Icon }) => (
-  <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
-    <div className="flex items-center space-x-3">
-      <div className={`p-2 rounded-md ${enabled ? 'bg-primary/20 text-primary' : 'bg-slate-800 text-slate-400'}`}>
-        <Icon size={16} />
-      </div>
-      <span className="font-medium text-sm text-slate-200">{label}</span>
-    </div>
-    <button
-      onClick={() => onChange(!enabled)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled ? 'bg-primary' : 'bg-slate-700'}`}
-    >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-    </button>
-  </div>
-);
-
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [sysStatus, setSysStatus] = useState({ running: false });
-  const [account, setAccount] = useState({ balance: 10000, equity: 10000 });
+  const [account, setAccount] = useState({ balance: null, equity: null });
+  const [accountSnapshot, setAccountSnapshot] = useState(null);
+  const [accountPerformance, setAccountPerformance] = useState(null);
   const [trades, setTrades] = useState({ count: 0, open_positions: [] });
   const [signals, setSignals] = useState([]);
   const [currentSignal, setCurrentSignal] = useState(null);
   const [sysSettings, setSysSettings] = useState({
-    use_ml_model: false,
-    mock_mt5: true,
-    loop_interval: 900
+    ml_model_enabled: false,
+    ml_model_available: false,
+    market_data_mode: null,
   });
 
   const fetchData = async () => {
     try {
-      const accRes = await getStatus().catch(() => ({ account_balance: 10000 }));
-      setAccount({ balance: accRes.account_balance, equity: accRes.account_balance + (accRes.total_unrealized_pnl || 0) });
+      const accountInfo = await getAccountInfo().catch(() => null);
+      const marketQuote = await getMarketQuote().catch(() => null);
+      setAccountSnapshot(accountInfo ? { ...accountInfo, market: marketQuote } : null);
+      setAccount({
+        balance: accountInfo?.balance ?? null,
+        equity: accountInfo?.equity ?? null
+      });
+      const performance = await getAccountPerformance().catch(() => null);
+      setAccountPerformance(performance?.available ? performance : null);
 
       const statRes = await getAnalysisStatus().catch(() => ({ running: false }));
       setSysStatus(statRes);
@@ -118,44 +110,42 @@ const Dashboard = () => {
     }
   };
 
-  const handleSettingChange = async (key, value) => {
-    try {
-      const updated = { ...sysSettings, [key]: value };
-      setSysSettings(updated);
-      await updateSettings({ [key]: value });
-    } catch (e) {
-      console.error("Failed to update setting", e);
-    }
-  };
-
   if (loading) return <div className="flex h-full items-center justify-center"><Activity className="animate-spin text-primary" size={40} /></div>;
 
-  // Derive Data for New Cards
-  const indicators = currentSignal?.indicator_results || {
-    EMA: { confidence: 0.82 },
-    MACD: { confidence: 0.75 },
-    RSI: { confidence: 0.61 },
-    ADX: { confidence: 0.89 },
-    ATR: { confidence: 0.72 }
-  };
+  const indicators = currentSignal?.indicator_results || {};
 
   const smc = currentSignal?.smc_results || {};
-  const bos = smc.structure?.bos || "None";
-  const trend = smc.structure?.trend || "Ranging";
-  const obArray = smc.order_blocks || [];
-  const ob = obArray.length > 0 ? obArray[0].type : "None";
-  const fvgArray = smc.fvg || [];
-  const fvg = fvgArray.length > 0 ? "PRESENT" : "NONE";
-  const choc = smc.structure?.choc || false; // Mocking Liquidity Grab from CHoCH
+  const bos = smc.structure?.bos || "Unavailable";
+  const trend = smc.structure?.trend || "Unavailable";
+  const ob = smc.order_block?.ob?.type || "Unavailable";
+  const fvg = smc.fvg?.signal || "Unavailable";
+  const choch = smc.structure?.choch || "Unavailable";
 
-  const finalConf = currentSignal ? Math.round(currentSignal.confidence * 100) : 84;
-  const indVals = Object.values(indicators).map(i => i.confidence);
-  const indConf = indVals.length > 0 ? Math.round((indVals.reduce((a, b) => a + b, 0) / indVals.length) * 100) : 78;
-  const smcConf = finalConf > 0 ? Math.min(100, Math.max(0, Math.round((finalConf * 2) - indConf))) : 91;
+  const finalConf = Number.isFinite(currentSignal?.confidence)
+    ? Math.round(currentSignal.confidence * 100)
+    : null;
+  const indVals = Object.values(indicators)
+    .map(indicator => indicator.confidence)
+    .filter(Number.isFinite);
+  const indConf = indVals.length > 0
+    ? Math.round((indVals.reduce((total, value) => total + value, 0) / indVals.length) * 100)
+    : null;
+  const structureConfidence = Number.isFinite(smc.structure?.confidence)
+    ? Math.round(smc.structure.confidence * 100)
+    : null;
+  const isSyntheticData = accountSnapshot?.data_mode === "synthetic_development";
 
   // Format reasoning string into bullet points
   const reasonText = currentSignal?.reason || "Waiting for analysis...";
   const reasonBullets = reasonText.split(/,|\n| and /).map(r => r.trim()).filter(r => r.length > 0);
+  const accountCurrency = accountSnapshot?.currency || "USD";
+  const formatAmount = value => value == null
+    ? "Unavailable"
+    : `${accountCurrency} ${Number(value).toFixed(2)}`;
+  const market = accountSnapshot?.market;
+  const brokerCosts = accountPerformance
+    ? -(accountPerformance.commission + accountPerformance.swap + accountPerformance.fees)
+    : null;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto text-slate-50">
@@ -180,24 +170,56 @@ const Dashboard = () => {
               }`}
           >
             {sysStatus.running ? <Square size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-            <span>{sysStatus.running ? 'STOP TRADING' : 'START TRADING'}</span>
+            <span>{sysStatus.running ? 'STOP PAPER ENGINE' : 'START PAPER ENGINE'}</span>
           </button>
         </Card>
       </div>
 
       {/* 6. Top Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
         <StatCard
-          title="Account Balance"
-          value={`$${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          title={isSyntheticData ? "Simulated Balance" : "Account Balance"}
+          value={formatAmount(account.balance)}
+          subtitle={isSyntheticData
+            ? "Synthetic development value; not a broker account"
+            : accountSnapshot?.server || "Account connection unavailable"}
           icon={DollarSign}
         />
         <StatCard
-          title="Equity"
-          value={`$${account.equity.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          title={isSyntheticData ? "Simulated Equity" : "Equity"}
+          value={formatAmount(account.equity)}
+          subtitle={isSyntheticData ? "Synthetic development value" : undefined}
           icon={TrendingUp}
           colorClass="text-green-400"
           bgClass="bg-green-500/10"
+        />
+        <StatCard
+          title={`${market?.pair || sysSettings.pair || "Market"} Bid / Ask`}
+          value={market ? `${Number(market.bid).toFixed(5)} / ${Number(market.ask).toFixed(5)}` : "Unavailable"}
+          subtitle={accountSnapshot?.data_mode === "mt5_read_only"
+            ? "MT5 read-only quote"
+            : isSyntheticData
+              ? "Synthetic development quote; not market data"
+              : "Quote unavailable"}
+          icon={TrendingUp}
+          colorClass="text-cyan-400"
+          bgClass="bg-cyan-500/10"
+        />
+        <StatCard
+          title="30-Day Net Realized"
+          value={formatAmount(accountPerformance?.net_realized)}
+          subtitle={accountPerformance ? `${accountPerformance.deal_count} account deals` : "Broker history unavailable"}
+          icon={BarChart2}
+          colorClass="text-blue-400"
+          bgClass="bg-blue-500/10"
+        />
+        <StatCard
+          title="30-Day Broker Costs"
+          value={formatAmount(brokerCosts)}
+          subtitle="Commission, swap, and fees"
+          icon={DollarSign}
+          colorClass="text-orange-400"
+          bgClass="bg-orange-500/10"
         />
         <StatCard
           title="Open Trades"
@@ -207,23 +229,24 @@ const Dashboard = () => {
           bgClass="bg-blue-500/10"
         />
         <StatCard
-          title="Market Status"
-          value="ACTIVE"
-          subtitle="EURUSD M15"
+          title="Execution Mode"
+          value={accountSnapshot?.execution_mode?.toUpperCase() || "PAPER"}
+          subtitle="No broker orders are sent"
           icon={Database}
           colorClass="text-purple-400"
           bgClass="bg-purple-500/10"
         />
       </div>
 
-      {/* NEW: 3 Column Analytics Grid (Temporarily 2 columns without SMC) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Indicator and market-structure analytics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
         {/* 1. Indicator Confidence Breakdown */}
         <Card>
           <h2 className="text-lg font-bold mb-5 flex items-center"><BarChart2 className="mr-2 text-blue-400" size={20} /> Indicator Confidence</h2>
           <div className="space-y-4">
             {Object.entries(indicators).slice(0, 5).map(([name, data]) => {
+              if (!Number.isFinite(data.confidence)) return null;
               const val = Math.round(data.confidence * 100);
               return (
                 <div key={name}>
@@ -251,33 +274,33 @@ const Dashboard = () => {
                 </div>
               );
             })}
+            {Object.keys(indicators).length === 0 && (
+              <p className="text-sm text-slate-500">No analysis data available.</p>
+            )}
           </div>
         </Card>
 
-        {/* 2. SMC Analysis Card (Temporarily deactivated) */}
-        {/*
         <Card>
           <h2 className="text-lg font-bold mb-5 flex items-center"><Layers className="mr-2 text-purple-400" size={20} /> SMC Analysis</h2>
           <div className="space-y-4 pt-1">
             <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
               <span className="text-slate-300 font-medium">BOS</span>
-              <Badge color={bos !== "None" ? "green" : "gray"}>{bos !== "None" ? "YES" : "NO"}</Badge>
+              <Badge color={bos === "BULLISH" ? "green" : bos === "BEARISH" ? "red" : "gray"}>{bos}</Badge>
             </div>
             <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
               <span className="text-slate-300 font-medium">Order Block</span>
-              <Badge color={ob === "Bullish" ? "green" : ob === "Bearish" ? "red" : "gray"}>{ob.toUpperCase()}</Badge>
+              <Badge color={ob === "BULLISH" ? "green" : ob === "BEARISH" ? "red" : "gray"}>{ob}</Badge>
             </div>
             <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
-              <span className="text-slate-300 font-medium">Liquidity Grab</span>
-              <Badge color={choc ? "green" : "gray"}>{choc ? "YES" : "NO"}</Badge>
+              <span className="text-slate-300 font-medium">CHoCH</span>
+              <Badge color={choch === "BULLISH" ? "green" : choch === "BEARISH" ? "red" : "gray"}>{choch}</Badge>
             </div>
             <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
               <span className="text-slate-300 font-medium">FVG</span>
-              <Badge color={fvg === "PRESENT" ? "blue" : "gray"}>{fvg}</Badge>
+              <Badge color={fvg === "BUY" ? "green" : fvg === "SELL" ? "red" : "gray"}>{fvg}</Badge>
             </div>
           </div>
         </Card>
-        */}
 
         {/* 3. AI Confidence Card */}
         <Card>
@@ -291,15 +314,15 @@ const Dashboard = () => {
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="10"
-                  className={finalConf > 60 ? "text-green-500" : finalConf < 40 ? "text-red-500" : "text-blue-500"}
+                  className={finalConf == null ? "text-slate-500" : finalConf > 60 ? "text-green-500" : finalConf < 40 ? "text-red-500" : "text-blue-500"}
                   strokeDasharray="339.29"
-                  strokeDashoffset={339.29 - (339.29 * finalConf) / 100}
+                  strokeDashoffset={339.29 - (339.29 * (finalConf ?? 0)) / 100}
                   strokeLinecap="round"
                   style={{ transition: 'stroke-dashoffset 1s ease-in-out' }}
                 />
               </svg>
               <div className="text-center z-10">
-                <span className="text-3xl font-black">{finalConf}%</span>
+                <span className="text-3xl font-black">{finalConf == null ? "—" : `${finalConf}%`}</span>
                 <span className="text-[10px] text-slate-400 block uppercase tracking-widest mt-1">Final</span>
               </div>
             </div>
@@ -307,12 +330,12 @@ const Dashboard = () => {
           <div className="space-y-3">
             <div className="flex justify-between items-center text-sm bg-slate-900/80 p-3 rounded-lg border border-slate-700/50">
               <span className="text-slate-400">Indicators Score</span>
-              <span className="font-bold text-blue-400 text-base">{indConf}%</span>
+              <span className="font-bold text-blue-400 text-base">{indConf == null ? "—" : `${indConf}%`}</span>
             </div>
 
             <div className="flex justify-between items-center text-sm bg-slate-900/80 p-3 rounded-lg border border-slate-700/50">
-              <span className="text-slate-400">SMC Score</span>
-              <span className="font-bold text-purple-400 text-base">{smcConf}%</span>
+              <span className="text-slate-400">Structure Confidence</span>
+              <span className="font-bold text-purple-400 text-base">{structureConfidence == null ? "—" : `${structureConfidence}%`}</span>
             </div>
 
           </div>
@@ -349,7 +372,7 @@ const Dashboard = () => {
                       </div>
                       <div className="text-right">
                         <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Confidence</p>
-                        <span className="font-bold text-slate-200 text-lg">{finalConf}%</span>
+                        <span className="font-bold text-slate-200 text-lg">{finalConf == null ? "—" : `${finalConf}%`}</span>
                       </div>
                     </div>
                   </div>
@@ -395,7 +418,7 @@ const Dashboard = () => {
 
           {/* Open Trades (Kept as requested) */}
           <Card>
-            <h2 className="text-xl font-bold mb-6">Live Open Trades</h2>
+            <h2 className="text-xl font-bold mb-6">Open Paper Positions</h2>
             {trades.open_positions.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {trades.open_positions.map((trade, i) => (
@@ -430,32 +453,18 @@ const Dashboard = () => {
 
           {/* Live Settings Panel */}
           <Card className="border-border">
-            <h2 className="text-xl font-bold mb-4 flex items-center"><Settings className="mr-2 text-slate-400" size={20} /> Demo Controls</h2>
-            <div className="space-y-3">
-              <Toggle
-                icon={BrainCircuit}
-                label="ML Engine (XGBoost)"
-                enabled={sysSettings.use_ml_model}
-                onChange={(v) => handleSettingChange('use_ml_model', v)}
-              />
-              <Toggle
-                icon={Database}
-                label="Mock Data Feed"
-                enabled={sysSettings.mock_mt5}
-                onChange={(v) => handleSettingChange('mock_mt5', v)}
-              />
-              <Toggle
-                icon={Zap}
-                label="Live Demo Speed (5s)"
-                enabled={sysSettings.loop_interval === 5}
-                onChange={(v) => handleSettingChange('loop_interval', v ? 5 : 900)}
-              />
-            </div>
-            {sysSettings.loop_interval === 5 && (
-              <div className="mt-4 p-3 bg-primary/10 border border-primary/20 rounded-lg text-sm text-primary">
-                ⚡ Demo mode is ON. The system is placing trades every 5 seconds.
-              </div>
-            )}
+            <h2 className="text-xl font-bold mb-4 flex items-center"><Settings className="mr-2 text-slate-400" size={20} /> Runtime Configuration</h2>
+            <p className="mt-3 text-xs text-slate-500">
+              Market data source is fixed at backend startup: {sysSettings.market_data_mode || "unavailable"}.
+              Configure it in the backend environment; synthetic development data is not live market data.
+            </p>
+            <p className="mt-3 text-xs text-slate-500">
+              ML model: {sysSettings.ml_model_available
+                ? "loaded"
+                : sysSettings.ml_model_enabled
+                  ? "enabled but unavailable"
+                  : "disabled"}
+            </p>
           </Card>
 
           {/* 5. Add Recent AI Decisions Timeline */}
@@ -463,8 +472,10 @@ const Dashboard = () => {
             <h2 className="text-xl font-bold mb-6">Recent AI Decisions</h2>
             <div className="space-y-5">
               {signals.length > 0 ? signals.slice(0, 6).map((sig, i) => {
-                const date = new Date(sig.timestamp || Date.now());
-                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const date = sig.timestamp ? new Date(sig.timestamp) : null;
+                const timeStr = date && !Number.isNaN(date.getTime())
+                  ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : "Time unavailable";
 
                 return (
                   <div key={i} className="relative pl-6 border-l-2 border-slate-700 pb-1">

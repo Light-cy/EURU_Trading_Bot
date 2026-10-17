@@ -9,8 +9,18 @@ const api = axios.create({
   },
 });
 
-export const getStatus = async () => {
-  const response = await api.get('/status');
+export const getAccountInfo = async () => {
+  const response = await api.get('/account');
+  return response.data;
+};
+
+export const getMarketQuote = async () => {
+  const response = await api.get('/market/quote');
+  return response.data;
+};
+
+export const getAccountPerformance = async (days = 30) => {
+  const response = await api.get('/account/performance', { params: { days } });
   return response.data;
 };
 
@@ -46,11 +56,6 @@ export const getAnalysisStatus = async () => {
 
 export const getSettings = async () => {
   const response = await api.get('/settings');
-  return response.data;
-};
-
-export const updateSettings = async (settings) => {
-  const response = await api.post('/settings/update', settings);
   return response.data;
 };
 

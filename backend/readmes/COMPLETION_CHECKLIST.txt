@@ -1,6 +1,9 @@
 ✅ XEPHY-AI IMPLEMENTATION CHECKLIST
 ════════════════════════════════════════════════════════════════════════════════
 
+OUTDATED CHECKLIST: Historical completion claims below are not a statement of
+current project readiness. Follow ../../README.md and ../../ARCHITECTURE.md.
+
 🎯 CORE BACKEND MODULES
 ────────────────────────────────────────────────────────────────────────────────
 
@@ -105,7 +108,7 @@ Configuration
   ✅ Trading parameters configurable
 
 Database
-  ✅ SQLite setup
+  ✅ SQLAlchemy database configuration and Alembic migrations
   ✅ Automatic table creation
   ✅ Connection pooling
   ✅ Session management

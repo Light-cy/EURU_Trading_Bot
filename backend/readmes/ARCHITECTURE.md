@@ -1,5 +1,9 @@
 # 🎯 XEPHY-AI ARCHITECTURE DIAGRAM
 
+> **Status:** Historical implementation notes. Follow the current project-level
+> [architecture and scope](../../ARCHITECTURE.md); this file has not yet been
+> fully reconciled with the current paper-only and PostgreSQL setup.
+
 ## Complete System Flow
 
 ```
@@ -303,7 +307,7 @@ Downstream code doesn't care which one is used! ✅
 ## Database Schema
 
 ```
-SQLite: trading_system.db
+Configured DATABASE_URL (PostgreSQL in the current local development setup)
 
 ┌─────────────────────────────────────────┐
 │            trades                        │

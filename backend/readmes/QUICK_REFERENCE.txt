@@ -2,6 +2,9 @@
                            XEPHY-AI QUICK REFERENCE
 ═══════════════════════════════════════════════════════════════════════════════
 
+OUTDATED GUIDE: Do not use historical settings below. Follow ../../README.md
+and ../../ARCHITECTURE.md for the current setup and safety boundaries.
+
 🚀 START SERVER
 ───────────────────────────────────────────────────────────────────────────────
 cd backend
@@ -83,7 +86,7 @@ Data → Indicators → SMC → Signals → Risk → Execute → Database
 ✓ Signal Aggregator (60% consensus)
 ✓ Risk Manager (position sizing)
 ✓ Trade Executor (order management)
-✓ SQLite Database (trade logging)
+✓ SQLAlchemy database with Alembic migrations
 ✓ Flask API (15+ endpoints)
 
 
@@ -111,7 +114,7 @@ curl -X POST http://localhost:5000/api/analyze
 
 💾 DATABASE
 ───────────────────────────────────────────────────────────────────────────────
-SQLite: trading_system.db
+Configured database (DATABASE_URL; current local development: PostgreSQL)
 
 Tables:
   • trades         - All trades (OPEN/CLOSED)
@@ -161,8 +164,10 @@ No positions appearing?
   → Check confidence threshold in .env
 
 Database issues?
-  → Delete: rm trading_system.db
-  → Will recreate on next run
+  → Check configured DATABASE_URL
+  → Check schema: cd backend && alembic current
+  → Apply migrations: cd backend && alembic upgrade head
+  → Do not delete a database to fix a migration error
 
 MT5 won't connect?
   → On Linux: MOCK_MT5=true (default)
@@ -178,10 +183,10 @@ Q: Can I trade multiple pairs?
 A: Currently one pair. Easy to extend
 
 Q: Is it safe for real trading?
-A: Only with proper backtesting and risk management
+A: No. It simulates positions and does not submit broker orders.
 
 Q: Where are trades stored?
-A: SQLite database (trading_system.db)
+A: In the configured SQLAlchemy database. Current local development uses PostgreSQL; SQLite remains available for fresh local setups.
 
 Q: How do I see trade history?
 A: GET /api/trades/recent
@@ -223,8 +228,8 @@ COMPLETION_CHECKLIST.txt  Everything that's implemented
 
 🎉 YOU'RE READY!
 ───────────────────────────────────────────────────────────────────────────────
-The system is production-ready and fully tested.
-Start the server and begin trading!
+The system is a research/paper-trading prototype.
+Run the tests and use simulated positions only.
 
 Questions? Check the documentation files above.
 

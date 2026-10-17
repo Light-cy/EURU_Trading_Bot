@@ -1,14 +1,16 @@
 # 🚀 Xephy-AI Trading System - Backend Implementation
 
-Complete quantitative trading system with technical indicators, SMC analysis, AI signals, and automated execution.
+Quantitative analysis and paper-trading prototype with technical indicators, SMC analysis, optional AI signals, and risk controls.
+
+> **Execution limitation:** This project only simulates positions in memory. It does not submit broker orders, even when MT5 is used as a market-data source. Do not use it for live trading.
 
 ## 📋 What's Implemented
 
 ### ✅ Core Modules
 
 1. **Market Data** (`market/mock_mt5.py`)
-   - MockMT5 for Linux development (demo data)
-   - Real MT5 integration ready for Windows
+   - Synthetic MockMT5 adapter for explicit development/test UI flows only
+   - Optional real MT5 market-data integration
    - OHLCV candle generation
    - Account info simulation
 
@@ -41,11 +43,11 @@ Complete quantitative trading system with technical indicators, SMC analysis, AI
    - Signal logging
    - Account statistics
 
-7. **Trade Execution** (`execution/executor.py`)
-   - Position management
-   - Order execution
-   - P&L tracking
-   - SL/TP automation
+7. **Paper Execution** (`execution/executor.py`)
+   - In-memory position management
+   - Simulated P&L tracking
+   - Simulated SL/TP automation
+   - No broker order submission
 
 8. **Trading Engine** (`main.py`)
    - Orchestrates all components
@@ -60,31 +62,22 @@ Complete quantitative trading system with technical indicators, SMC analysis, AI
 
 ---
 
-## 🔄 MT5 Switching (Linux → Windows)
+## 🔄 Market Data Source
 
 ### Current Setup (Linux)
-- Using **MockMT5** for demo data
-- `settings.MOCK_MT5=true` in `.env`
-- Works immediately on Linux
+- Synthetic **MockMT5** is an explicit development-only adapter, not a market feed.
+- It is disabled by default; set `MOCK_MT5=true` only in `ENV=development` or `ENV=test`.
+- The dashboard labels its balances and quotes as synthetic. These values are not evidence for strategy performance.
 
-### Switch to Real MT5 (Windows)
-Only 3 simple steps:
+The optional `RealMT5` adapter is read-only: it retrieves account details, a live quote, and account-wide realized deal results/costs. It does not enable order execution. If MT5 is selected but cannot connect, startup fails rather than silently switching to generated mock data.
 
-```bash
-# Step 1: Install MT5 package
-pip install MetaTrader5
+Use `MOCK_MT5=true` only to exercise development UI flows. Model training refuses synthetic data, and real MT5 connection failure never falls back to generated prices. To inspect an MT5 account, use a supported Windows host with the MetaTrader 5 terminal installed and logged into a broker demo account, install the optional `MetaTrader5` Python package there, and leave `MOCK_MT5=false`. Store credentials in an untracked `.env`; never commit them. Keep the API private because authentication has not yet been implemented.
 
-# Step 2: Change .env
-MOCK_MT5=false
-
-# Step 3: Update config/settings.py OR create an adapter
-# The TradeExecutor and main.py are already compatible!
-```
-
-**Why it's easy to switch?**
-- `TradeExecutor` uses generic MT5 interface
-- `TradingSystem` initializes MT5 in `_init_mt5()` method
-- Just swap the client, everything else works
+Unverified legacy training datasets and model artifacts have been removed.
+ML remains disabled by default; startup requires a sidecar identifying
+read-only MT5 data, the configured pair, and matching model/scaler hashes.
+This is an integrity record, not cryptographic proof. Backtests accept only a
+caller-provided OHLCV CSV and do not manufacture candles.
 
 ---
 
@@ -94,6 +87,7 @@ MOCK_MT5=false
 ```bash
 cd backend
 pip install -r requirements.txt
+alembic upgrade head
 ```
 
 ### 2. Run Trading System
@@ -102,6 +96,47 @@ python app.py
 ```
 
 Server starts at: `http://localhost:5000`
+
+Run the focused core tests from the backend directory:
+
+```bash
+python -m unittest discover -s tests
+```
+
+### Database and migrations
+
+**FYP database direction:** The proposal specifies MongoDB, so MongoDB is the
+selected target. The current implementation remains SQLAlchemy/Alembic with
+PostgreSQL configured in the active local environment and SQLite as the code
+default. MongoDB support and a safe history transition have not been
+implemented. Do not delete or overwrite existing relational database history.
+
+The local default remains `sqlite:///./trading_system.db` (relative to the
+backend working directory). Schema creation is managed by Alembic; the app now
+fails with a migration instruction rather than creating tables on startup.
+Run `alembic upgrade head` after configuring the database and before starting
+the API.
+
+For a user-local PostgreSQL cluster without admin privileges, see the setup
+commands in the root README. Configure the untracked `backend/.env` with a
+PostgreSQL `DATABASE_URL` that uses the cluster's local peer-authenticated
+socket, then run the migration command from `backend/`. The initial migration
+creates the trades, signal logs, and account statistics schema. When pointed at
+a matching legacy SQLite schema, it versions existing tables and leaves their
+records intact.
+
+To copy SQLite history into PostgreSQL, back up the SQLite file first, migrate
+the destination schema, and run:
+
+```bash
+python scripts/migrate_sqlite_to_postgres.py --source ./trading_system.db
+```
+
+The tool preserves primary keys, verifies matching columns and row counts,
+updates PostgreSQL ID sequences, and refuses to import into non-empty history
+tables. It does not alter the source SQLite database. Confirm the authoritative
+SQLite file before transfer; do not delete a database to resolve a migration
+error.
 
 ### 3. Trigger Analysis
 ```bash
@@ -128,7 +163,9 @@ curl -X POST http://localhost:5000/api/analyze
 - `GET /api/positions` → All open positions
 - `POST /api/positions/{trade_id}` → Close position
 - `GET /api/trades/recent?limit=10` → Recent closed trades
-- `GET /api/account` → Account info
+- `GET /api/account` → Read-only account details
+- `GET /api/market/quote` → Current quote for the configured pair
+- `GET /api/account/performance?days=30` → Realized account-wide results and broker costs
 
 ### Signals & History
 - `GET /api/signals/history?pair=EURUSD&days=7` → Signal history
@@ -149,12 +186,16 @@ MAX_DAILY_LOSS=3.0    # Max daily loss %
 MAX_OPEN_TRADES=3     # Max concurrent trades
 
 # Mode
-MOCK_MT5=true         # false = use real MT5
+MOCK_MT5=true         # false = read-only MT5 account/market data
 ENV=development       # development or production
 
 # Server
+FLASK_HOST=127.0.0.1
 FLASK_PORT=5000
 FLASK_DEBUG=true
+
+# Browser access (comma-separated allowed frontend origins)
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
 ---
@@ -188,7 +229,7 @@ FLASK_DEBUG=true
 └─────┬──────────────┘
       │
 ┌─────▼──────────────┐
-│ Execute Trade      │ ← Send order
+│ Paper Execution    │ ← In-memory simulated position
 └─────┬──────────────┘
       │
 ┌─────▼──────────────┐
@@ -278,9 +319,9 @@ trading_system.mt5.connect()
 
 ### Database errors
 ```bash
-# Reset database
-rm trading_system.db
-# Will recreate on next run
+# Inspect the configured database URL and apply schema migrations
+alembic current
+alembic upgrade head
 ```
 
 ### No signals generated
@@ -299,7 +340,7 @@ Check:
 - ✅ Modular: Each component independent
 - ✅ Extensible: Easy to add new indicators/strategies
 - ✅ Platform-agnostic: MockMT5 ↔ Real MT5
-- ✅ Production-ready: Error handling, logging, validation
+- ✅ Versioned schema: Alembic migrations; PostgreSQL driver available
 - ✅ Database-backed: All trades tracked
 - ✅ API-driven: Full REST interface
 
@@ -320,13 +361,12 @@ Check:
 - Pandas, NumPy
 - SQLAlchemy (ORM)
 - Loguru (logging)
-- MetaTrader5 (real trading, optional)
+- MetaTrader5 (optional market-data connection; no order execution)
 - scikit-learn, XGBoost (ML, for AI module)
 
 All in `requirements.txt` ✅
 
 ---
 
-**Status:** ✅ Production-Ready (Core)
-**Last Updated:** June 2026
+**Status:** Research / paper-trading prototype; not production-ready
 **Version:** 1.0.0

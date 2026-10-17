@@ -1,5 +1,8 @@
 # 🎯 XEPHY-AI Backend Implementation Summary
 
+> **Historical summary:** Completion and mock-data claims below are outdated.
+> Follow [the current architecture](../../ARCHITECTURE.md) and root README.
+
 ## ✅ What Was Implemented
 
 ### 6 New Core Modules Created
@@ -313,10 +316,10 @@ for pos in positions:
 **A:** Manually via API, or automatically every 15 min when background loop is ON.
 
 ### Q: Where are trades stored?
-**A:** SQLite database (`trading_system.db`). Easy to switch to PostgreSQL.
+**A:** The database configured by `DATABASE_URL`. Current local development uses PostgreSQL; SQLite remains the default for fresh setups. Schema changes require Alembic migrations.
 
 ### Q: Is it production-ready?
-**A:** Core logic yes. For production: add authentication, use WSGI server, add monitoring.
+**A:** No. This is a research/paper-trading prototype; it does not submit broker orders.
 
 ---
 

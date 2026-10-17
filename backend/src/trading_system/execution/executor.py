@@ -1,4 +1,3 @@
-import json
 from dataclasses import dataclass
 from loguru import logger
 from typing import Optional, List
@@ -32,16 +31,17 @@ class OpenPosition:
 
 class TradeExecutor:
     """
-    Executes trades and manages open positions.
-    Can be used with real MT5 or MockMT5.
+    Simulates trades and manages in-memory paper positions.
+
+    This executor does not submit orders to a broker, including when market
+    data is supplied by a real MT5 connection.
     """
+
+    EXECUTION_MODE = "paper"
 
     def __init__(self, mt5_client):
         """
-        Initialize executor with MT5 client
-        
-        Args:
-            mt5_client: Can be either MockMT5 or real MT5 API client
+        Initialize executor with the configured market-data adapter.
         """
         self.mt5 = mt5_client
         self.open_trades: List[OpenPosition] = []
@@ -117,16 +117,9 @@ class TradeExecutor:
         """Internal trade execution logic"""
         
         try:
-            # Check MT5 connection
-            if not self.mt5.connected:
-                self.mt5.connect()
-
             # Create trade record
             self.trade_counter += 1
             trade_id = self.trade_counter
-
-            # TODO: In production, send actual order to MT5
-            # order_result = self.mt5.send_order(...)
 
             position = OpenPosition(
                 trade_id=trade_id,
@@ -145,7 +138,7 @@ class TradeExecutor:
             self.open_trades.append(position)
 
             logger.success(
-                f"Trade executed: ID={trade_id} {signal} {pair} @ {entry_price:.5f} "
+                f"Paper trade opened: ID={trade_id} {signal} {pair} @ {entry_price:.5f} "
                 f"| SL={stop_loss:.5f} | TP={take_profit:.5f} | Size={position_size}"
             )
 
@@ -159,6 +152,7 @@ class TradeExecutor:
                 "take_profit": take_profit,
                 "position_size": position_size,
                 "confidence": confidence,
+                "execution_mode": self.EXECUTION_MODE,
                 "entry_time": position.entry_time.isoformat()
             }
 

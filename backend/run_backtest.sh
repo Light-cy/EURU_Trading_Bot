@@ -6,4 +6,4 @@ if [ -d "venv" ]; then
     source venv/bin/activate
 fi
 
-python -m src.trading_system.backtesting.run_backtest
+python -m src.trading_system.backtesting.run_backtest "$@"

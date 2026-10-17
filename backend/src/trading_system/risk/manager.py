@@ -1,4 +1,3 @@
-import pandas as pd
 from dataclasses import dataclass
 from loguru import logger
 from typing import Optional, Dict
@@ -23,6 +22,9 @@ class RiskManager:
     Calculates position sizing and stop loss / take profit levels.
     Supports multiple strategies: fixed risk, Kelly criterion, etc.
     """
+
+    PIP_SIZE = 0.0001
+    PIP_VALUE_PER_STANDARD_LOT = 10.0
 
     def __init__(
         self,
@@ -59,27 +61,39 @@ class RiskManager:
             RiskParameters with full position details
         """
 
+        if signal not in {"BUY", "SELL"}:
+            raise ValueError("signal must be BUY or SELL")
+        if not math.isfinite(current_price) or current_price <= 0:
+            raise ValueError("current_price must be a positive finite number")
+        if not math.isfinite(stop_loss_pips) or stop_loss_pips <= 0:
+            raise ValueError("stop_loss_pips must be a positive finite number")
+        if not math.isfinite(reward_risk_ratio) or reward_risk_ratio <= 0:
+            raise ValueError("reward_risk_ratio must be a positive finite number")
+        if self.account_balance <= 0 or self.risk_percent <= 0:
+            raise ValueError("account_balance and risk_percent must be positive")
+
         # Use ATR if provided, otherwise use fixed SL
-        if atr_value and atr_value > 0:
-            sl_pips = atr_value * 100  # Convert to pips
+        if atr_value is not None:
+            if not math.isfinite(atr_value) or atr_value <= 0:
+                raise ValueError("atr_value must be a positive finite number")
+            sl_pips = atr_value / self.PIP_SIZE
             reason = f"ATR-based SL ({atr_value:.5f})"
         else:
             sl_pips = stop_loss_pips
             reason = f"Fixed SL ({stop_loss_pips} pips)"
 
         # Calculate SL and TP prices
-        pip_value = 0.0001  # For most forex pairs (EURUSD, GBPUSD, etc)
+        pip_size = self.PIP_SIZE
 
         if signal == "BUY":
-            stop_loss = current_price - (sl_pips * pip_value)
-            take_profit = current_price + (sl_pips * reward_risk_ratio * pip_value)
+            stop_loss = current_price - (sl_pips * pip_size)
+            take_profit = current_price + (sl_pips * reward_risk_ratio * pip_size)
         else:  # SELL
-            stop_loss = current_price + (sl_pips * pip_value)
-            take_profit = current_price - (sl_pips * reward_risk_ratio * pip_value)
+            stop_loss = current_price + (sl_pips * pip_size)
+            take_profit = current_price - (sl_pips * reward_risk_ratio * pip_size)
 
-        # Risk amount per trade
-        risk_amount = self.account_balance * (self.risk_percent / 100)
-        risk_pips = abs(current_price - stop_loss) / pip_value
+        risk_budget = self.account_balance * (self.risk_percent / 100)
+        risk_pips = abs(current_price - stop_loss) / pip_size
 
         # Position size calculation
         if self.strategy == "kelly":
@@ -88,12 +102,26 @@ class RiskManager:
                 (win_rate * reward_risk_ratio - (1 - win_rate)) / reward_risk_ratio
             )
             kelly_pct = max(0.01, min(kelly_pct, 0.25))  # Limit to 1-25%
-            position_size = self.account_balance * kelly_pct / (risk_pips * 10)
+            position_size = self.account_balance * kelly_pct / (
+                risk_pips * self.PIP_VALUE_PER_STANDARD_LOT
+            )
             reason += f" | Kelly {kelly_pct:.2%}"
         else:  # fixed_risk (default)
-            position_size = risk_amount / (risk_pips * 10) if risk_pips > 0 else 0
+            position_size = (
+                risk_budget / (risk_pips * self.PIP_VALUE_PER_STANDARD_LOT)
+                if risk_pips > 0
+                else 0
+            )
 
-        reward_amount = position_size * reward_risk_ratio * risk_pips * pip_value
+        # Round down so lot precision never increases the requested risk budget.
+        position_size = math.floor(position_size * 100) / 100
+        risk_amount = position_size * risk_pips * self.PIP_VALUE_PER_STANDARD_LOT
+        reward_amount = (
+            position_size
+            * reward_risk_ratio
+            * risk_pips
+            * self.PIP_VALUE_PER_STANDARD_LOT
+        )
 
         # RRR validation
         rrr = reward_amount / risk_amount if risk_amount > 0 else 0
@@ -147,7 +175,7 @@ class RiskManager:
             reasons.append(f"Daily loss limit ({max_daily_loss_percent}%) reached")
 
         # Check SL placement
-        risk_pips = abs(entry_price - stop_loss) / 0.0001
+        risk_pips = abs(entry_price - stop_loss) / self.PIP_SIZE
         if risk_pips < 10:  # Minimum 10 pips
             is_valid = False
             reasons.append(f"SL too close ({risk_pips} pips, min 10)")

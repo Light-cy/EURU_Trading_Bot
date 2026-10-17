@@ -5,8 +5,10 @@ from loguru import logger
 
 class MockMT5:
     """
-    Simulates MetaTrader5 behavior for Linux development.
-    Real MT5 se replace karna ho toh sirf is class ko swap karo.
+    Generates synthetic prices for explicit development and test use only.
+
+    This adapter is not a market-data source and must not be used to evaluate
+    strategy performance or train production models.
     """
 
     def __init__(self, pair: str = "EURUSD"):
@@ -32,7 +34,7 @@ class MockMT5:
         now = datetime.now()
         dates = [now - timedelta(minutes=15 * i) for i in range(bars, 0, -1)]
 
-        # Realistic price movement simulate karo
+        # Generate synthetic price movement; it does not represent market history.
         returns = np.random.normal(0, 0.0003, bars)  # small movements
         prices = [self.current_price]
 

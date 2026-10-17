@@ -1,23 +1,45 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from pathlib import Path
+
+from alembic.config import Config
+from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+    create_engine,
+    inspect,
+)
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from datetime import datetime
 from loguru import logger
-import os
+from ..config.settings import settings
 
-# Database setup
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///./trading_system.db"  # SQLite for development
-)
+DATABASE_URL = settings.DATABASE_URL
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+
+def _migration_revisions() -> tuple[str | None, str | None]:
+    config_path = Path(__file__).resolve().parents[3] / "alembic.ini"
+    config = Config(str(config_path))
+    config.set_main_option("script_location", str(config_path.parent / "migrations"))
+    expected_revision = ScriptDirectory.from_config(config).get_current_head()
+
+    with engine.connect() as connection:
+        current_revision = MigrationContext.configure(connection).get_current_revision()
+
+    return current_revision, expected_revision
 
 
 class Trade(Base):
@@ -93,8 +115,24 @@ class DatabaseManager:
     """Database operations handler"""
 
     def __init__(self):
-        # Create all tables
-        Base.metadata.create_all(bind=engine)
+        current_revision, expected_revision = _migration_revisions()
+        if current_revision != expected_revision:
+            actual = current_revision or "uninitialized"
+            expected = expected_revision or "base"
+            raise RuntimeError(
+                f"Database migration state is {actual}; expected {expected}. "
+                "Run `alembic upgrade head` from the backend directory."
+            )
+
+        required_tables = set(Base.metadata.tables)
+        existing_tables = set(inspect(engine).get_table_names())
+        missing_tables = required_tables - existing_tables
+        if missing_tables:
+            missing = ", ".join(sorted(missing_tables))
+            raise RuntimeError(
+                f"Database schema is missing tables: {missing}. "
+                "Run `alembic upgrade head` from the backend directory."
+            )
         logger.success("Database initialized")
 
     @staticmethod

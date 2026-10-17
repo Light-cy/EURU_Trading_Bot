@@ -7,12 +7,14 @@
 ║                                                                              ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 
+OUTDATED SUMMARY: Several implementation and mock-data claims below are no
+longer current. Follow ../../README.md and ../../ARCHITECTURE.md.
 
 📊 WHAT WAS BUILT
 ════════════════════════════════════════════════════════════════════════════════
 
 You wanted me to help implement the remaining backend modules.
-I've successfully created 6 complete, production-ready modules:
+The project contains 6 implemented backend modules. They remain a research prototype and are not production-ready:
 
 
 🎯 SUMMARY
@@ -64,7 +66,7 @@ I've successfully created 6 complete, production-ready modules:
 📈 TOTAL CODE ADDED
 ════════════════════════════════════════════════════════════════════════════════
 
-Total Lines: ~1,500 lines of production-ready Python
+Total Lines: ~1,500 lines of prototype Python
 Total Time: ~2 hours of implementation
 Total Files: 6 core modules + 6 documentation files
 Total Tests: All modules tested ✅ Server running ✅
@@ -205,7 +207,8 @@ FLASK_DEBUG=true            # Debug mode
 💾 DATABASE
 ════════════════════════════════════════════════════════════════════════════════
 
-Stored in: trading_system.db (SQLite)
+Stored in the configured SQLAlchemy database. The current local development
+environment uses PostgreSQL; the code default for a fresh setup is SQLite.
 
 Tables:
   • trades          - Every trade (OPEN/CLOSED)
@@ -336,7 +339,7 @@ Testing:
     └─ Data, OHLCV, Account Info
     
     All positions + signals logged to:
-    └─ SQLite Database (trades, signals, stats)
+    └─ Configured SQLAlchemy Database (trades, signals, stats)
 
 
 🎓 DOCUMENTATION
@@ -382,7 +385,8 @@ Q: Can I modify settings?
 A: YES! Edit .env and restart server
 
 Q: Is the database secure?
-A: SQLite for dev. Use PostgreSQL + encryption for production.
+A: Local development currently uses PostgreSQL. Authentication and multi-user
+authorization are not implemented; do not expose the API to a network.
 
 Q: What if I want to add more indicators?
 A: Easy! Add new class to indicators/ folder, register in IndicatorManager
@@ -394,7 +398,7 @@ A: Easy! Add new class to indicators/ folder, register in IndicatorManager
 ✅ Code Quality:         No syntax errors
 ✅ Runtime:              Server starts without errors
 ✅ Components:           All 10+ components initialize ✅
-✅ Database:             SQLite creates tables automatically
+✅ Database:             Alembic manages schema; apply migrations before startup
 ✅ API:                  All endpoints respond correctly
 ✅ Logging:              Full trace of execution
 ✅ Error Handling:       Graceful failure recovery

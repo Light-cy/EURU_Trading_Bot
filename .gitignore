@@ -14,6 +14,11 @@ venv/
 *.db
 *.sqlite3
 
+# Generated ML artifacts and datasets require data provenance review before use
+backend/src/trading_system/ai/training_dataset_*.csv
+backend/src/trading_system/ai/xgboost_signal_model*.pkl
+backend/src/trading_system/ai/xgboost_signal_model*.metadata.json
+
 # OS
 .DS_Store
 

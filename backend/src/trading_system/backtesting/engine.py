@@ -9,6 +9,7 @@ from ..smc.manager import SMCManager
 from ..core.signal_aggregator import SignalAggregator
 from ..risk.manager import RiskManager
 from ..ai.model import XGBoostSignalModel
+from ..config.settings import settings
 
 class BacktestTrade:
     def __init__(self, id: int, signal: str, entry_price: float, sl: float, tp: float, size: float, entry_time: datetime):
@@ -35,9 +36,20 @@ class Backtester:
         self.indicators = IndicatorManager()
         self.smc = SMCManager()
         
-        model_path = os.path.join(os.path.dirname(__file__), '../ai/xgboost_signal_model.pkl')
-        self.ml_model = XGBoostSignalModel(model_path=model_path)
-        self.ml_model.load()
+        self.ml_model = None
+        if settings.USE_ML_MODEL:
+            model_path = os.path.join(
+                os.path.dirname(__file__), "../ai/xgboost_signal_model.pkl"
+            )
+            self.ml_model = XGBoostSignalModel(
+                model_path=model_path,
+                expected_pair=settings.PAIR,
+            )
+            self.ml_model.load()
+            if not self.ml_model.is_trained:
+                raise RuntimeError(
+                    "USE_ML_MODEL is enabled, but no valid trained model artifact is available."
+                )
         
         self.signal_aggregator = SignalAggregator(min_consensus=0.60, ml_model=self.ml_model)
         self.risk_manager = RiskManager(account_balance=initial_balance, risk_percent=risk_percent)

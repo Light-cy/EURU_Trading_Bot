@@ -1,5 +1,12 @@
 # XGBoost ML Model Integration
 
+> **Status:** Historical and not an evaluation of model quality. The former
+> examples used synthetic or unvalidated data and have been removed. Do not
+> interpret sample outputs or performance claims below as verified results.
+> Current runtime configuration is startup-only, and ML startup fails when the
+> model, scaler, or provenance sidecar is missing. The sidecar checks artifact
+> integrity but is not cryptographically signed.
+
 ## Overview
 
 The XEPHY-AI system now supports **optional XGBoost ML boosting** for signal confidence scoring.
@@ -8,12 +15,12 @@ The XEPHY-AI system now supports **optional XGBoost ML boosting** for signal con
 
 1. **NO_ML Mode** (Default) ✅
    - Uses only technical indicators + SMC
-   - Fast, lightweight, production-ready
+   - Model predictions are not used; strategy effectiveness is unvalidated
    - `USE_ML_MODEL=false` in .env
 
 2. **ML Mode** (Optional)
    - Uses XGBoost to boost confidence scores
-   - Requires trained model file
+   - Requires a valid artifact and independent evaluation
    - `USE_ML_MODEL=true` in .env
 
 
@@ -97,66 +104,18 @@ Response includes:
 
 ## Training the ML Model
 
-### Quick Training Script
+The current training command uses the configured real MT5 connection and refuses
+to run when `MOCK_MT5=true`:
 
-```python
-import pandas as pd
-import numpy as np
-from src.trading_system.ai.model import XGBoostSignalModel
-from src.trading_system.market.mock_mt5 import MockMT5
-
-# Generate training data
-mt5 = MockMT5()
-mt5.connect()
-df = mt5.get_historical_data(bars=1000)
-
-# Create labels (0=SELL, 1=NEUTRAL, 2=BUY)
-# Simulate based on price movement
-labels = []
-for i in range(len(df)-1):
-    future_return = (df['close'].iloc[i+1] - df['close'].iloc[i]) / df['close'].iloc[i]
-    if future_return > 0.002:      # +0.2%
-        labels.append(2)  # BUY
-    elif future_return < -0.002:   # -0.2%
-        labels.append(0)  # SELL
-    else:
-        labels.append(1)  # NEUTRAL
-
-labels.append(1)  # Last row
-
-# Train model
-model = XGBoostSignalModel()
-model.train(df, np.array(labels))
-
-# Model saved as: xgboost_signal_model.pkl
+```bash
+python -m src.trading_system.ai.train_model
 ```
 
-### Or Use Historical Data
-
-```python
-import yfinance as yf
-import numpy as np
-from src.trading_system.ai.model import XGBoostSignalModel
-
-# Download historical data
-ticker = yf.download('EURUSD=X', period='1y', interval='15m')
-ticker.columns = ['open', 'high', 'low', 'close', 'volume']
-
-# Create labels
-labels = []
-for i in range(len(ticker)-1):
-    future_return = (ticker['close'].iloc[i+1] - ticker['close'].iloc[i]) / ticker['close'].iloc[i]
-    if future_return > 0.002:
-        labels.append(2)
-    elif future_return < -0.002:
-        labels.append(0)
-    else:
-        labels.append(1)
-
-# Train
-model = XGBoostSignalModel()
-model.train(ticker, np.array(labels))
-```
+This pipeline does not yet provide out-of-sample validation or establish
+predictive value. Do not enable or present a resulting model as effective until
+it has been independently evaluated on suitable, non-overlapping historical
+data. Generated datasets and model files are local artifacts and are excluded
+from version control.
 
 
 ## Features Extracted
@@ -176,10 +135,10 @@ The ML model uses these engineered features:
 | Aspect | NO_ML | ML Mode |
 |--------|-------|---------|
 | **Speed** | ⚡ Fast | Slower (+100ms) |
-| **Accuracy** | ✅ High | ✅✅ Very High |
+| **Accuracy** | Not measured | Not measured |
 | **Complexity** | Simple | Complex |
 | **Training** | None needed | Requires data |
-| **Production** | ✅ Ready | Ready (with model) |
+| **Production** | Not production-ready | Not production-ready |
 | **Interpretable** | ✅ Yes | No |
 
 
@@ -276,7 +235,7 @@ If ML mode is too slow:
 
 ## Summary
 
-✅ **NO_ML Mode** - Default, fast, production-ready
+✅ **NO_ML Mode** - Default; no model artifact required
 - Jadi ke just press start and it works!
 
 ✅ **ML Mode** - Optional, needs training, can boost confidence

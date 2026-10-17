@@ -1,4 +1,3 @@
-import pandas as pd
 import json
 from loguru import logger
 from typing import Optional, Dict
@@ -28,6 +27,7 @@ class TradingSystem:
 
         # Initialize components
         self.settings = settings
+        self.db = DatabaseManager()
         self.mt5 = self._init_mt5()
         self.indicators = IndicatorManager()
         self.smc = SMCManager()
@@ -41,40 +41,47 @@ class TradingSystem:
             risk_percent=settings.RISK_PERCENT,
             strategy="fixed_risk"
         )
-        self.db = DatabaseManager()
         self.executor = TradeExecutor(self.mt5)
 
         logger.success("✅ All components initialized successfully")
 
     def _init_mt5(self):
-        """Initialize MT5 client (mock or real)"""
+        """Initialize the configured development simulator or read-only MT5 client."""
         if settings.MOCK_MT5:
-            logger.info(f"📊 Using MockMT5 (Linux demo mode)")
+            if settings.ENV not in {"development", "test"}:
+                raise RuntimeError(
+                    "Synthetic market data is restricted to development and test."
+                )
+            logger.warning(
+                "Using SYNTHETIC market data for development only; "
+                "signals and paper results are not market evidence."
+            )
             client = MockMT5(pair=settings.PAIR)
             client.connect()
             return client
         else:
-            logger.info(f"📊 Using RealMT5 (Live Trading Mode)")
+            logger.info("📊 Using RealMT5 in read-only market/account mode")
             client = RealMT5(pair=settings.PAIR)
             success = client.connect()
             if not success:
-                logger.warning("Real MT5 connection failed! Falling back to MockMT5 (Demo Mode)...")
-                client = MockMT5(pair=settings.PAIR)
-                client.connect()
+                raise RuntimeError(
+                    "MT5 connection was requested but failed. "
+                    "Refusing to fall back to mock data."
+                )
             return client
 
     def _init_ml_model(self):
         """Initialize XGBoost ML model (optional)"""
         if settings.USE_ML_MODEL:
             logger.info("🤖 Initializing XGBoost ML model...")
-            ml_model = XGBoostSignalModel()
+            ml_model = XGBoostSignalModel(expected_pair=settings.PAIR)
             ml_model.load()
             if ml_model.is_trained:
                 logger.success("✅ ML model loaded and ready")
                 return ml_model
-            else:
-                logger.warning("⚠️  ML model not found. Using NO_ML mode")
-                return None
+            raise RuntimeError(
+                "USE_ML_MODEL is enabled, but no valid trained model artifact is available."
+            )
         else:
             logger.info("💡 ML mode disabled (NO_ML mode - using indicators only)")
             return None
@@ -122,7 +129,7 @@ class TradingSystem:
             # Step 4: Aggregating signals
             logger.info("4️⃣  Aggregating signals & updating PnL...")
             current_price = df["close"].iloc[-1]
-            atr_value = df["close"].pct_change().std()  # Rough ATR estimate
+            atr_value = indicator_results.get("ATR", {}).get("value")
             
             # Update live PnL for existing open trades and catch any auto-closed trades
             closed_trades = self.executor.update_prices({self.settings.PAIR: current_price})
@@ -132,19 +139,11 @@ class TradingSystem:
                 new_balance = self.risk_manager.account_balance + ct["pnl"]
                 self.risk_manager.update_account_balance(new_balance)
             
-            # For demo purposes, lower the strictness so trades actually execute on random mock data
-            if settings.LOOP_INTERVAL == 5:
-                self.signal_aggregator.min_consensus = 0.35
-                min_conf = 0.40
-            else:
-                self.signal_aggregator.min_consensus = 0.60
-                min_conf = settings.MIN_CONFIDENCE / 100
-                
             signal = self.signal_aggregator.aggregate(
                 indicator_results=indicator_results,
                 smc_results=smc_results,
                 df=df,  # Pass dataframe for ML prediction
-                min_confidence=min_conf
+                min_confidence=settings.MIN_CONFIDENCE / 100
             )
             logger.success(f"✅ Signal: {signal.signal} (confidence: {signal.overall_confidence:.2f})")
 
@@ -152,14 +151,11 @@ class TradingSystem:
             # Step 5: Risk calculation
             logger.info("5️⃣  Calculating risk parameters...")
             if signal.signal in ["BUY", "SELL"]:
-                # Use fixed 50 pips SL for 5s demo mode, otherwise use real ATR
-                use_atr = None if settings.LOOP_INTERVAL == 5 else atr_value
-                
                 risk_params = self.risk_manager.calculate_position(
                     current_price=current_price,
                     stop_loss_pips=50,  # 50 pips default
                     signal=signal.signal,
-                    atr_value=use_atr
+                    atr_value=atr_value
                 )
                 logger.success(f"✅ Risk params calculated")
             else:
@@ -298,7 +294,8 @@ class TradingSystem:
             "account_balance": self.risk_manager.account_balance,
             "open_trades": len(self.executor.open_trades),
             "total_unrealized_pnl": self.executor.get_total_unrealized_pnl(),
-            "mock_mode": self.settings.MOCK_MT5
+            "market_data_mode": "synthetic_development" if self.settings.MOCK_MT5 else "mt5_read_only",
+            "execution_mode": self.executor.EXECUTION_MODE
         }
 
     def get_open_positions(self) -> list:

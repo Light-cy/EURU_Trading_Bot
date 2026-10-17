@@ -4,6 +4,9 @@
 ║                                                                                ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
+OUTDATED GUIDE: Do not use the historical mock-data or setup claims below.
+Follow ../../README.md and ../../ARCHITECTURE.md for current setup and safety.
+
 📋 SUMMARY OF IMPLEMENTATION
 ════════════════════════════════════════════════════════════════════════════════
 
@@ -23,9 +26,9 @@
    ✓ Daily loss enforcement
 
 3. 💼 Trade Executor (execution/executor.py)
-   ✓ Buy/Sell order execution
-   ✓ Open position tracking
-   ✓ Automatic SL/TP handling
+   ✓ Simulated Buy/Sell positions (paper only)
+   ✓ In-memory open position tracking
+   ✓ Simulated SL/TP handling
    ✓ P&L calculation
    ✓ Trade history logging
 
@@ -130,7 +133,8 @@ Data:
 💾 DATABASE
 ════════════════════════════════════════════════════════════════════════════════
 
-SQLite Database (trading_system.db):
+Configured SQLAlchemy database (PostgreSQL in the current local setup;
+SQLite remains the default for fresh setups):
 
   trades
   ├─ id, pair, signal (BUY/SELL)
@@ -229,7 +233,7 @@ Execution:
   ✓ Real-time P&L
 
 Persistence:
-  ✓ SQLite database
+  ✓ SQLAlchemy persistence with Alembic migrations
   ✓ Trade history
   ✓ Signal logging
   ✓ Account statistics
@@ -357,10 +361,10 @@ Q: How often does it analyze?
 A: Manual via API, or every 15 min with background loop
 
 Q: Where are trades stored?
-A: SQLite database (trading_system.db)
+A: In the configured database. The current local environment uses PostgreSQL; SQLite remains supported for fresh local setups.
 
 Q: Is it production-ready?
-A: Core logic yes. Add authentication & monitoring for production
+A: No. It is a research/paper-trading prototype and does not submit broker orders.
 
 
 ✅ STATUS

@@ -11,7 +11,7 @@ from src.trading_system.config.settings import settings
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=settings.CORS_ORIGINS)
 
 # Initialize trading system
 trading_system = TradingSystem()
@@ -142,12 +142,51 @@ def get_signal_history():
 
 @app.route("/api/account", methods=["GET"])
 def get_account_info():
-    """Get account information"""
-    account = trading_system.mt5.get_account_info()
+    """Get read-only account details."""
+    try:
+        account = trading_system.mt5.get_account_info()
+    except (RuntimeError, ValueError) as e:
+        logger.error(f"Account information unavailable: {e}")
+        return jsonify({"error": str(e)}), 503
+
     return jsonify({
         **account,
+        "data_mode": (
+            "synthetic_development" if settings.MOCK_MT5 else "mt5_read_only"
+        ),
+        "execution_mode": trading_system.executor.EXECUTION_MODE,
         "timestamp": datetime.now().isoformat()
     })
+
+
+@app.route("/api/market/quote", methods=["GET"])
+def get_market_quote():
+    """Get a read-only quote for the configured pair."""
+    try:
+        market = trading_system.mt5.get_current_price()
+    except (RuntimeError, ValueError) as e:
+        logger.error(f"Market quote unavailable: {e}")
+        return jsonify({"error": str(e)}), 503
+    return jsonify(market)
+
+
+@app.route("/api/account/performance", methods=["GET"])
+def get_account_performance():
+    """Get realized account-wide trading results and broker charges."""
+    days = request.args.get("days", 30, type=int)
+    if not hasattr(trading_system.mt5, "get_recent_performance"):
+        return jsonify({
+            "available": False,
+            "reason": "Broker deal history is unavailable in mock mode"
+        })
+
+    try:
+        performance = trading_system.mt5.get_recent_performance(days=days)
+    except (RuntimeError, ValueError) as e:
+        logger.error(f"Account performance unavailable: {e}")
+        return jsonify({"error": str(e)}), 503
+
+    return jsonify({"available": True, **performance})
 
 
 @app.route("/api/analysis/start", methods=["POST"])
@@ -217,53 +256,16 @@ def get_settings():
         "min_confidence": settings.MIN_CONFIDENCE,
         "max_daily_loss": settings.MAX_DAILY_LOSS,
         "max_open_trades": settings.MAX_OPEN_TRADES,
-        "mock_mt5": settings.MOCK_MT5,
-        "use_ml_model": settings.USE_ML_MODEL,
+        "market_data_mode": (
+            "synthetic_development" if settings.MOCK_MT5 else "mt5_read_only"
+        ),
+        "ml_model_enabled": settings.USE_ML_MODEL,
+        "ml_model_available": (
+            trading_system.ml_model is not None
+            and trading_system.ml_model.is_trained
+        ),
         "loop_interval": settings.LOOP_INTERVAL,
         "environment": settings.ENV
-    })
-
-
-@app.route("/api/settings/update", methods=["POST"])
-def update_settings():
-    """Update settings dynamically"""
-    from src.trading_system.config.settings import settings
-    data = request.get_json()
-    
-    if "use_ml_model" in data:
-        settings.USE_ML_MODEL = bool(data["use_ml_model"])
-        if settings.USE_ML_MODEL:
-            if trading_system.ml_model is None:
-                from src.trading_system.ai.model import XGBoostSignalModel
-                import os
-                model_path = os.path.join(os.path.dirname(__file__), 'src/trading_system/ai/xgboost_signal_model.pkl')
-                trading_system.ml_model = XGBoostSignalModel(model_path=model_path)
-                trading_system.ml_model.load()
-            trading_system.signal_aggregator.ml_model = trading_system.ml_model
-            trading_system.signal_aggregator.use_ml = trading_system.ml_model.is_trained
-            logger.info("ML Engine ENABLED via UI")
-        else:
-            trading_system.signal_aggregator.use_ml = False
-            logger.info("ML Engine DISABLED via UI")
-            
-    if "mock_mt5" in data:
-        new_mock = bool(data["mock_mt5"])
-        if new_mock != settings.MOCK_MT5:
-            settings.MOCK_MT5 = new_mock
-            trading_system.disconnect()
-            trading_system.mt5 = trading_system._init_mt5()
-            trading_system.executor.mt5 = trading_system.mt5
-            logger.info(f"Mock MT5 set to {settings.MOCK_MT5}")
-            
-    if "loop_interval" in data:
-        settings.LOOP_INTERVAL = int(data["loop_interval"])
-        logger.info(f"Loop interval set to {settings.LOOP_INTERVAL}s")
-        
-    return jsonify({
-        "success": True, 
-        "use_ml_model": settings.USE_ML_MODEL,
-        "mock_mt5": settings.MOCK_MT5,
-        "loop_interval": settings.LOOP_INTERVAL
     })
 
 
@@ -314,7 +316,7 @@ if __name__ == "__main__":
     
     try:
         app.run(
-            host="0.0.0.0",
+            host=settings.FLASK_HOST,
             port=settings.FLASK_PORT,
             debug=settings.FLASK_DEBUG,
             use_reloader=False  # Prevent double initialization
