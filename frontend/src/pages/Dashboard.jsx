@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Activity, TrendingUp, DollarSign, BrainCircuit, Play, Square, Settings, Database, BarChart2, Layers, Cpu } from 'lucide-react';
 import { getAccountInfo, getAccountPerformance, getMarketQuote, getAnalyze, getAnalysisStatus, startAnalysis, stopAnalysis, getSignalsHistory, getPositions, getSettings, getLatestAnalysis } from '../services/api';
 
@@ -50,7 +50,7 @@ const Dashboard = () => {
     market_data_mode: null,
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const accountInfo = await getAccountInfo().catch(() => null);
       const marketQuote = await getMarketQuote().catch(() => null);
@@ -87,15 +87,20 @@ const Dashboard = () => {
     } catch (e) {
       console.error("Error fetching dashboard data", e);
     } finally {
-      if (loading) setLoading(false);
+      setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchData();
+    const initialFetch = setTimeout(() => {
+      void fetchData();
+    }, 0);
     const interval = setInterval(fetchData, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      clearTimeout(initialFetch);
+      clearInterval(interval);
+    };
+  }, [fetchData]);
 
   const toggleEngine = async () => {
     try {

@@ -1,7 +1,7 @@
 # Xephy-AI Trading Platform Architecture
 
 **Status:** Working architecture for project scoping  
-**Last updated:** 2026-10-11
+**Last updated:** 2026-10-17
 
 This document describes the intended direction for the FYP and separates it
 from what the repository currently implements. It is a guide for breaking work
@@ -183,6 +183,12 @@ Linux MT5 support as ready until it has been tested.
   persistence path and history transition are designed, tested, and documented.
 - Preserve the existing PostgreSQL and SQLite databases during the transition;
   take verified backups and document restore procedures before any data copy.
+- Do not dual-write to PostgreSQL and MongoDB as an interim shortcut. Select
+  one authoritative write path after the MongoDB implementation is verified.
+- Candidate MongoDB collections include users, account connections,
+  preferences, recommendations, paper trades, and audit events. Confirm
+  document boundaries, indexes, retention, and ownership requirements before
+  implementation; this list is a starting point, not a finalized schema.
 - Design records for ownership from the start, including account links,
   preferences, recommendations, commands, paper trades, and audit events.
 - Enforce ownership in backend service queries and commands, not only through
@@ -234,7 +240,7 @@ from paper to broker execution.
 |------|-----------|
 | Frontend | Keep the existing React/Vite dashboard. |
 | API and analysis | Keep Python; retain Flask initially unless measured needs justify a change. |
-| Database | MongoDB for the FYP target, matching the proposal. Current local code still uses SQLAlchemy with PostgreSQL/SQLite; migration work is pending. |
+| Database | MongoDB for the FYP target, matching the proposal. Current local code still uses SQLAlchemy with PostgreSQL/SQLite; data model and migration design must be reviewed before implementation. |
 | Local development | Continue running locally; provide reproducible setup instructions. |
 | MT5 access | User-run connector; read-only first. Evaluate Windows integration and Linux/EA bridge independently. |
 | Cloud | AWS is a later deployment target, after local workflows, security boundaries, and operational requirements are proven. |
@@ -251,10 +257,11 @@ integration findings may change scope or duration. Documentation is part of
 every milestone, not a final-only task.
 
 1. **Foundation and cleanup** — define production vs. development adapters,
-   align persistence with the proposal by designing and implementing MongoDB,
-   safely retain/transition existing relational history, design
-   ownership-ready records, add audit foundations, and document setup,
-   architecture, data model, backups, and decisions.
+   review MongoDB document and index design against the proposal and project
+   workflows, safely plan retention/transition of existing relational history,
+   design ownership-ready records, add audit foundations, and document setup,
+   architecture, data model, backups, and decisions. Implement the MongoDB
+   write path only after the design and data transition have been reviewed.
 2. **Recommendation workflow** — implement configurable sizing, risk checks,
    SL/TP, rationale, expiry, and review actions; document formulas, contracts,
    configuration, and operator workflow.

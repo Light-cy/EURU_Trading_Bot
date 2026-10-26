@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { getRecentTrades } from '../services/api';
 import { History, TrendingUp, TrendingDown, Clock, ShieldAlert } from 'lucide-react';
 
@@ -6,7 +6,7 @@ const Trades = () => {
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchTrades = async () => {
+  const fetchTrades = useCallback(async () => {
     try {
       const data = await getRecentTrades(50);
       if (data && data.trades) {
@@ -17,13 +17,18 @@ const Trades = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchTrades();
-    const interval = setInterval(fetchTrades, 5000); // refresh every 5s
-    return () => clearInterval(interval);
-  }, []);
+    const initialFetch = setTimeout(() => {
+      void fetchTrades();
+    }, 0);
+    const interval = setInterval(fetchTrades, 5000);
+    return () => {
+      clearTimeout(initialFetch);
+      clearInterval(interval);
+    };
+  }, [fetchTrades]);
 
   const formatDate = (dateString) => {
     if (!dateString) return "—";
